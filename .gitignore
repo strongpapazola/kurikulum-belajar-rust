@@ -1,0 +1,103 @@
+# ============================================
+# Rust
+# ============================================
+
+# Cargo build output
+target/
+Cargo.lock
+
+# File binary hasil compile rustc langsung
+# (file tanpa ekstensi di folder manapun)
+**/01_hello_world
+**/02_variables
+**/03_data_types
+**/04_functions
+**/05_control_flow
+**/06_structs
+**/ex01_hello_world
+**/ex01_hello_world_jawaban
+**/ex02_variables
+**/ex03_functions
+**/ex04_control_flow
+**/ex05_structs
+**/ex01_ownership
+**/ex01_enums
+**/ex01_collections
+**/ex01_error_handling
+**/01_ownership
+**/02_borrowing
+**/01_enums
+**/02_option
+**/01_result
+**/01_vectors
+**/03_hashmaps
+**/01_async_basic
+**/output
+
+# Semua binary output (tidak ada ekstensi, executable)
+# Uncomment baris ini kalau mau ignore semua binary sekaligus:
+# !*.rs
+# !*.toml
+# !*.md
+# !*.txt
+# **/[^.]*
+
+# ============================================
+# macOS
+# ============================================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ============================================
+# IDE & Editor
+# ============================================
+
+# VSCode
+.vscode/
+!.vscode/extensions.json
+
+# JetBrains (CLion, IntelliJ)
+.idea/
+*.iml
+
+# Vim / Neovim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+*#
+.#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ============================================
+# OS lain
+# ============================================
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.exe
+*.dll
+
+# Linux
+*~
+
+# ============================================
+# Misc
+# ============================================
+*.log
+*.tmp
+*.bak
+.env
+.env.local

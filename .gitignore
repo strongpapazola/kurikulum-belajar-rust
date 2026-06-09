@@ -7,7 +7,6 @@ target/
 Cargo.lock
 
 # File binary hasil compile rustc langsung
-# (file tanpa ekstensi di folder manapun)
 **/01_hello_world
 **/02_variables
 **/03_data_types
@@ -24,23 +23,23 @@ Cargo.lock
 **/ex01_enums
 **/ex01_collections
 **/ex01_error_handling
+**/ex01_traits
 **/01_ownership
 **/02_borrowing
 **/01_enums
 **/02_option
 **/01_result
 **/01_vectors
+**/02_strings
 **/03_hashmaps
+**/01_traits
+**/02_generics
+**/03_lifetimes
 **/01_async_basic
+**/02_tokio
+**/main
+**/kalkulator
 **/output
-
-# Semua binary output (tidak ada ekstensi, executable)
-# Uncomment baris ini kalau mau ignore semua binary sekaligus:
-# !*.rs
-# !*.toml
-# !*.md
-# !*.txt
-# **/[^.]*
 
 # ============================================
 # macOS

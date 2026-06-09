@@ -9,25 +9,17 @@
 
 | Folder | Level | Topik yang Dipakai | Status |
 |--------|-------|-------------------|--------|
-| [csv_processor](./csv_processor) | ⭐⭐ Menengah | Vec, HashMap, struct, error handling | ✅ Ada |
-| [cli_kalkulator](./cli_kalkulator) | ⭐ Pemula | basic, functions, match, input | 🚧 Soon |
-| [rest_api](./rest_api) | ⭐⭐⭐ Lanjut | async, Axum, serde, error handling | 🚧 Soon |
+| [csv_processor](./csv_processor) | ⭐⭐ Menengah | Vec, HashMap, struct, error handling | ✅ Selesai |
+| [cli_kalkulator](./cli_kalkulator) | ⭐ Pemula | basic, functions, match, env::args | ✅ Selesai |
+| [rest_api](./rest_api) | ⭐⭐⭐ Lanjut | Axum, async, serde, JSON | ✅ Selesai |
 
 ---
 
 ## 01 · CSV Processor e-Faktur
 
-> Simulasi baca data CSV, validasi, hitung PPN, dan generate output CSV baru.
-> Ini adalah use case nyata di sistem perpajakan!
+> Baca data CSV, validasi NPWP, hitung PPN, generate output CSV baru.
 
-📄 [Lihat kode → csv_processor/main.rs](./csv_processor/main.rs)
-
-**Yang dipraktekkan:**
-- Struct untuk model data (`FakturItem`)
-- Validasi NPWP dengan error handling
-- Parsing CSV manual
-- Vec, HashMap untuk aggregate data
-- Generate output CSV
+📄 [csv_processor/main.rs](./csv_processor/main.rs)
 
 **Cara jalankan:**
 ```bash
@@ -35,67 +27,132 @@ cd csv_processor
 rustc main.rs && ./main
 ```
 
+**Fitur:**
+- Parse CSV manual tanpa library
+- Validasi NPWP (15 digit)
+- Hitung DPP, PPN 11%, total
+- Summary per pembeli menggunakan HashMap
+- Report grand total
+
+---
+
+## 02 · CLI Kalkulator Pajak
+
+> Kalkulator pajak yang berjalan di terminal — support PPN, PPh 21, PPh 23.
+
+📄 [cli_kalkulator/main.rs](./cli_kalkulator/main.rs)
+
+**Cara jalankan:**
+```bash
+cd cli_kalkulator
+rustc main.rs -o kalkulator
+
+# Mode demo (tanpa argumen)
+./kalkulator
+
+# PPN
+./kalkulator ppn 5000000
+
+# PPh 21 (gaji tahunan, status menikah)
+./kalkulator pph21 120000000 menikah
+
+# PPh 23
+./kalkulator pph23 10000000 jasa
+./kalkulator pph23 50000000 dividen
+```
+
 **Contoh output:**
 ```
-=== CSV Processor e-Faktur ===
-
-=== ERROR VALIDASI ===
-❌ Baris 3: NPWP 'INVALID_NPWP' tidak valid
-❌ Baris 6: NPWP '55.666.777.8-999.INVALID' tidak valid
-
-=== FAKTUR VALID (4 item) ===
-✅ FKT-001 | PT Maju Jaya   | Laptop    | DPP: 30000000 | PPN: 3300000
-✅ FKT-002 | CV Sejahtera   | Printer   | DPP: 3500000  | PPN: 385000
-...
-
-=== SUMMARY PER PEMBELI ===
-PT Maju Jaya: 2 faktur, Total Rp 38885000
-CV Sejahtera: 1 faktur, Total Rp 3885000
+────────────────────────────
+  Jenis Pajak : PPh Pasal 21
+  DPP         : Rp 120.000.000
+  Pajak       : Rp 3.225.000
+  Total Bayar : Rp 120.000.000
+  Keterangan  : PTKP: Rp 58.500.000 | PKP: Rp 61.500.000 | PPh/bulan: Rp 268.750
+────────────────────────────
 ```
 
----
-
-## 02 · CLI Kalkulator Pajak (Coming Soon 🚧)
-
-> Kalkulator pajak interaktif di terminal.
-
-**Yang akan dipraktekkan:**
-- Input dari user (`std::io`)
-- Match untuk pilih jenis pajak
-- Struct & method untuk kalkulasi
-- Loop untuk menu interaktif
+**Konsep yang dipraktekkan:**
+- `env::args()` untuk baca argumen CLI
+- Custom error handling
+- Enum untuk jenis pajak
+- Tarif progresif PPh 21
 
 ---
 
-## 03 · REST API Pajak (Coming Soon 🚧)
+## 03 · REST API Pajak
 
-> REST API sederhana dengan endpoint untuk kalkulasi pajak.
+> REST API dengan Axum — framework web async Rust yang sangat cepat.
 
-**Stack:**
-- **Axum** — web framework Rust
-- **Serde** — JSON serialization
-- **Tokio** — async runtime
+📄 [rest_api/src/main.rs](./rest_api/src/main.rs)
 
-**Endpoint yang akan dibuat:**
-```
-POST /hitung-ppn     → { dpp: 1000000 } → { ppn: 110000, total: 1110000 }
-POST /hitung-pph21   → { gaji, npwp }   → { pph21_bulanan, pph21_tahunan }
-POST /validasi-npwp  → { npwp }         → { valid: true/false }
+**Setup & jalankan:**
+```bash
+cd rest_api
+cargo run
 ```
 
+**Endpoint:**
+```
+GET  /health
+POST /hitung/ppn      { "dpp": 5000000 }
+POST /hitung/pph21    { "penghasilan_setahun": 120000000, "menikah": true }
+POST /hitung/pph23    { "dpp": 10000000, "objek": "jasa" }
+POST /validasi/npwp   { "npwp": "12.345.678.9-012.345" }
+```
+
+**Test dengan curl:**
+```bash
+# Health check
+curl http://localhost:3000/health
+
+# Hitung PPN
+curl -X POST http://localhost:3000/hitung/ppn \
+  -H "Content-Type: application/json" \
+  -d '{"dpp": 5000000}'
+
+# Response:
+# {
+#   "dpp": 5000000.0,
+#   "tarif_persen": 11.0,
+#   "ppn": 550000.0,
+#   "total": 5550000.0
+# }
+
+# Hitung PPh 21
+curl -X POST http://localhost:3000/hitung/pph21 \
+  -H "Content-Type: application/json" \
+  -d '{"penghasilan_setahun": 120000000, "menikah": true}'
+
+# Validasi NPWP
+curl -X POST http://localhost:3000/validasi/npwp \
+  -H "Content-Type: application/json" \
+  -d '{"npwp": "12.345.678.9-012.345"}'
+```
+
+**Jalankan unit test:**
+```bash
+cargo test
+```
+
+**Konsep yang dipraktekkan:**
+- `axum` untuk routing dan handler
+- `serde` untuk JSON serialization/deserialization
+- `tokio` async runtime
+- Request/Response types terpisah
+- Unit testing dengan `#[cfg(test)]`
+
 ---
 
-## Tips Mengerjakan Mini Project
+## Tips Extend Project Ini
 
-1. **Baca kode dari atas ke bawah** — struct dulu, baru impl, baru main
-2. **Jalankan dulu** sebelum modifikasi — pastikan kode asli works
-3. **Tambah fitur sendiri** setelah paham — latihan terbaik!
-4. **Ideas untuk extend:**
-   - Baca CSV dari file nyata
-   - Export ke format lain (JSON, Excel)
-   - Tambah lebih banyak validasi DJP
-   - Connect ke API sungguhan
+| Project | Ide Pengembangan |
+|---------|-----------------|
+| CSV Processor | Baca dari file nyata, export ke JSON, validasi lebih lengkap |
+| CLI Kalkulator | Mode interaktif (loop input), export ke PDF, history kalkulasi |
+| REST API | Tambah database (SQLite/Postgres), auth JWT, rate limiting, Docker |
 
 ---
 
-*Selamat — kamu sudah menyelesaikan kurikulum! 🎉 Terus berlatih dan buat proyek sendiri!* 🦀
+*Selamat — kamu sudah menyelesaikan kurikulum! 🎉*
+*Next step: buat project sendiri, atau kontribusi ke open source Rust!* 🦀

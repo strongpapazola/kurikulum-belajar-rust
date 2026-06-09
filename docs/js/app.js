@@ -156,10 +156,14 @@ function renderMateri(lesson) {
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     // Inline code
     .replace(/`([^`\n]+)`/g, '<code>$1</code>')
-    // Code blocks
+    // Code blocks — pakai highlight.js
     .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-      const escaped = code.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      return `<pre class="code-block" data-code="${encodeURIComponent(code.trim())}"><button class="btn-copy-code" onclick="copyCode(this)">Copy</button><code class="language-${lang}">${syntaxHighlight(escaped, lang)}</code></pre>`;
+      const trimmed  = code.trim();
+      const language = lang || 'rust';
+      const highlighted = (typeof hljs !== 'undefined')
+        ? hljs.highlight(trimmed, { language, ignoreIllegals: true }).value
+        : trimmed.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `<pre class="code-block" data-code="${encodeURIComponent(trimmed)}"><button class="btn-copy-code" onclick="copyCode(this)">Copy</button><code class="hljs language-${language}">${highlighted}</code></pre>`;
     })
     // Lists
     .replace(/^- (.+)$/gm, '<li>$1</li>')
@@ -209,17 +213,6 @@ function renderMateri(lesson) {
   container.appendChild(navDiv);
 }
 
-function syntaxHighlight(code, lang) {
-  if (lang !== 'rust') return code;
-  return code
-    .replace(/\b(fn|let|mut|pub|use|struct|impl|enum|trait|for|in|if|else|match|return|true|false|Self|self|async|await|move)\b/g,
-      '<span style="color:#c792ea">$1</span>')
-    .replace(/\b(i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|usize|bool|char|String|str|Vec|Option|Result|Box)\b/g,
-      '<span style="color:#82aaff">$1</span>')
-    .replace(/\/\/.*/g, '<span style="color:#546e7a;font-style:italic">$&</span>')
-    .replace(/"([^"]*)"/g, '<span style="color:#c3e88d">"$1"</span>')
-    .replace(/\b(\d+(?:_\d+)*(?:\.\d+)?)\b/g, '<span style="color:#f78c6c">$1</span>');
-}
 
 function copyCode(btn) {
   const code = decodeURIComponent(btn.parentElement.dataset.code || '');

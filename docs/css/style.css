@@ -306,7 +306,7 @@ sidebar {
   color: var(--accent);
 }
 .materi-content pre {
-  background: var(--bg-card);
+  background: #1a1f2e !important;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px 20px;
@@ -314,11 +314,12 @@ sidebar {
   margin: 12px 0 20px;
   position: relative;
 }
-.materi-content pre code {
-  background: none;
+.materi-content pre code,
+.materi-content pre code.hljs {
+  background: none !important;
   border: none;
   padding: 0;
-  color: var(--text);
+  font-family: var(--font-mono);
   font-size: 13.5px;
   line-height: 1.6;
 }

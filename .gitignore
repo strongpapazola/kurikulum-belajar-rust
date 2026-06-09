@@ -6,41 +6,6 @@
 target/
 Cargo.lock
 
-# File binary hasil compile rustc langsung
-**/01_hello_world
-**/02_variables
-**/03_data_types
-**/04_functions
-**/05_control_flow
-**/06_structs
-**/ex01_hello_world
-**/ex01_hello_world_jawaban
-**/ex02_variables
-**/ex03_functions
-**/ex04_control_flow
-**/ex05_structs
-**/ex01_ownership
-**/ex01_enums
-**/ex01_collections
-**/ex01_error_handling
-**/ex01_traits
-**/01_ownership
-**/02_borrowing
-**/01_enums
-**/02_option
-**/01_result
-**/01_vectors
-**/02_strings
-**/03_hashmaps
-**/01_traits
-**/02_generics
-**/03_lifetimes
-**/01_async_basic
-**/02_tokio
-**/main
-**/kalkulator
-**/output
-
 # ============================================
 # macOS
 # ============================================
@@ -88,9 +53,6 @@ Desktop.ini
 $RECYCLE.BIN/
 *.exe
 *.dll
-
-# Linux
-*~
 
 # ============================================
 # Misc

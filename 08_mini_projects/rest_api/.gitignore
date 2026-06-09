@@ -1,0 +1,7 @@
+# Ignore compiled output, keep source files
+*
+!.gitignore
+!*.toml
+!*.md
+!src/
+!src/*.rs

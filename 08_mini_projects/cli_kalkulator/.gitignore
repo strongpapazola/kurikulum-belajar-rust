@@ -1,0 +1,5 @@
+# Ignore compiled binaries, keep source files only
+*
+!.gitignore
+!*.rs
+!*.md

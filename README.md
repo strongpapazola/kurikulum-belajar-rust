@@ -84,7 +84,7 @@ rustc ex01_hello_world.rs && ./ex01_hello_world
 | 5 | [05_error_handling](./05_error_handling) | Result\<T,E\>, Custom Error, ? | 1 file | 1 exercise |
 | 6 | [06_traits](./06_traits) | Traits, Generics, Lifetimes | coming soon | - |
 | 7 | [07_async_rust](./07_async_rust) | Async/Await, Tokio | 1 file | - |
-| 8 | [08_mini_projects](./08_mini_projects) | CSV Processor, REST API | - | - |
+| 8 | [08_mini_projects](./08_mini_projects) | CSV Processor, CLI Kalkulator, REST API, Monitor Gempa BMKG | 4 project | - |
 
 ---
 

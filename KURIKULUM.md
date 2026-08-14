@@ -74,6 +74,7 @@ mini_projects/  → Proyek kecil untuk praktek
 | `cli_kalkulator/` | Kalkulator CLI — praktek basic + error handling |
 | `csv_processor/` | Baca & proses CSV — relevan untuk e-Faktur! |
 | `rest_api/` | REST API sederhana pakai Axum |
+| `gempa_bmkg/` | Ambil data gempa real-time dari API publik BMKG |
 
 ---
 

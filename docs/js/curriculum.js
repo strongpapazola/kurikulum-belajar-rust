@@ -1735,5 +1735,678 @@ fn main() {
         }
       }
     ]
+  },
+
+  {
+    id: '08_studi_kasus',
+    title: '08 · Studi Kasus: API BMKG',
+    icon: '🌏',
+    lessons: [
+      {
+        id: 'bmkg_parsing',
+        title: 'Ambil & Parse Data Gempa',
+        content: `
+# Studi Kasus: Data Gempa BMKG
+
+Sekarang kita pakai data **sungguhan**. BMKG menyediakan API publik yang gratis dan tanpa API key:
+
+- \`autogempa.json\` — 1 gempa terbaru, \`gempa\` berbentuk **objek**
+- \`gempaterkini.json\` — 15 gempa terkini M ≥ 5.0, \`gempa\` berbentuk **array**
+- \`gempadirasakan.json\` — 15 gempa yang dirasakan warga, berbentuk **array**
+
+Semuanya ada di \`https://data.bmkg.go.id/DataMKG/TEWS/\`
+
+## Bentuk JSON-nya
+
+\`\`\`json
+{
+  "Infogempa": {
+    "gempa": {
+      "Tanggal": "14 Agu 2026",
+      "Jam": "08:14:48 WIB",
+      "Coordinates": "5.36,125.34",
+      "Magnitude": "5.3",
+      "Kedalaman": "10 km",
+      "Wilayah": "195 km BaratLaut TAHUNA-KEP.SANGIHE-SULUT",
+      "Potensi": "Tidak berpotensi tsunami",
+      "Dirasakan": "-"
+    }
+  }
+}
+\`\`\`
+
+## Jebakan 1 — Semua Nilai Bertipe String
+
+Lihat baik-baik: \`"Magnitude": "5.3"\` itu **String**, bukan angka. Begitu juga \`"Kedalaman": "10 km"\`.
+Jadi konversinya kita kerjakan sendiri:
+
+\`\`\`rust
+fn magnitudo(&self) -> f64 {
+    self.magnitude.trim().parse().unwrap_or(0.0)
+}
+fn kedalaman_km(&self) -> f64 {
+    self.kedalaman
+        .split_whitespace()          // "10 km" -> ["10", "km"]
+        .next()                      // Option<&str>
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0.0)
+}
+\`\`\`
+
+<div class="concept-box">
+<strong>Beda dari JS/Python:</strong> di JS <code>JSON.parse</code> memberi kamu objek yang bisa diisi apa saja. Di Rust, bentuk datanya harus dideklarasikan dulu lewat struct — kalau JSON-nya tidak cocok, parsing gagal di situ juga, bukan meledak jauh di kemudian hari.
+</div>
+
+## Jebakan 2 — Key PascalCase
+
+BMKG memakai \`"Tanggal"\`, konvensi Rust \`tanggal\`. Jembatannya \`#[serde(rename)]\`:
+
+\`\`\`rust
+#[derive(Debug, Deserialize)]
+struct Gempa {
+    #[serde(rename = "Tanggal")]
+    tanggal: String,
+    #[serde(rename = "Magnitude")]
+    magnitude: String,
+}
+\`\`\`
+
+## Jebakan 3 — Field yang Tidak Selalu Ada
+
+\`Potensi\` tidak ada di \`gempadirasakan.json\`, \`Shakemap\` hanya ada di \`autogempa.json\`.
+Kalau dideklarasikan sebagai \`String\` biasa, parsing akan **gagal total**. Solusinya \`Option<T>\`:
+
+\`\`\`rust
+#[serde(rename = "Potensi")]
+potensi: Option<String>,
+\`\`\`
+
+## Jebakan 4 — "-" Artinya Kosong
+
+BMKG mengisi \`"Dirasakan": "-"\` kalau tidak ada laporan. Ubah jadi \`None\` supaya rapi:
+
+\`\`\`rust
+fn dirasakan_bersih(&self) -> Option<&str> {
+    let nilai = self.dirasakan.as_deref()?.trim();
+    if nilai.is_empty() || nilai == "-" { None } else { Some(nilai) }
+}
+\`\`\`
+
+## Klasifikasi Magnitudo
+
+\`match\` dengan guard cocok sekali untuk ini:
+
+\`\`\`rust
+fn skala(&self) -> &'static str {
+    match self.magnitudo() {
+        m if m < 4.0 => "🟢 Kecil",
+        m if m < 5.0 => "🟡 Ringan",
+        m if m < 6.0 => "🟠 Sedang",
+        m if m < 7.0 => "🔴 Kuat",
+        _            => "🟣 Besar",
+    }
+}
+\`\`\`
+
+<div class="concept-box warn">
+<strong>Kenapa JSON-nya ditempel di kode?</strong> Playground ini tidak punya akses internet, jadi data BMKG kita tempel langsung sebagai konstanta. Di project aslinya, data diambil pakai <code>reqwest</code> — lihat <code>08_mini_projects/gempa_bmkg/</code> di repo.
+</div>
+
+<div class="concept-box tip">
+<strong>Coba sendiri:</strong> buka <code>https://data.bmkg.go.id/DataMKG/TEWS/autogempa.json</code> di browser. Datanya berubah tiap kali ada gempa baru di Indonesia.
+</div>
+        `,
+        defaultCode: `// Studi Kasus: Parsing data gempa BMKG
+// Data asli dari https://data.bmkg.go.id/DataMKG/TEWS/autogempa.json
+// Playground tidak punya internet, jadi JSON-nya ditempel langsung.
+
+use serde::Deserialize;
+
+// Perhatikan: SEMUA nilai dari BMKG bertipe String — termasuk angka!
+const DATA_BMKG: &str = r#"{
+  "Infogempa": {
+    "gempa": {
+      "Tanggal": "14 Agu 2026",
+      "Jam": "08:14:48 WIB",
+      "Coordinates": "5.36,125.34",
+      "Lintang": "5.36 LU",
+      "Bujur": "125.34 BT",
+      "Magnitude": "5.3",
+      "Kedalaman": "10 km",
+      "Wilayah": "195 km BaratLaut TAHUNA-KEP.SANGIHE-SULUT",
+      "Potensi": "Tidak berpotensi tsunami",
+      "Dirasakan": "-"
+    }
+  }
+}"#;
+
+#[derive(Debug, Deserialize)]
+struct Response {
+    #[serde(rename = "Infogempa")]
+    infogempa: Wrapper,
+}
+
+#[derive(Debug, Deserialize)]
+struct Wrapper {
+    gempa: Gempa,
+}
+
+#[derive(Debug, Deserialize)]
+struct Gempa {
+    #[serde(rename = "Tanggal")]
+    tanggal: String,
+    #[serde(rename = "Jam")]
+    jam: String,
+    #[serde(rename = "Magnitude")]
+    magnitude: String,
+    #[serde(rename = "Kedalaman")]
+    kedalaman: String,
+    #[serde(rename = "Wilayah")]
+    wilayah: String,
+    #[serde(rename = "Lintang")]
+    lintang: String,
+    #[serde(rename = "Bujur")]
+    bujur: String,
+
+    // Field ini tidak ada di semua endpoint BMKG -> harus Option
+    #[serde(rename = "Potensi")]
+    potensi: Option<String>,
+    #[serde(rename = "Dirasakan")]
+    dirasakan: Option<String>,
+}
+
+impl Gempa {
+    // "5.3" -> 5.3
+    fn magnitudo(&self) -> f64 {
+        self.magnitude.trim().parse().unwrap_or(0.0)
+    }
+
+    // "10 km" -> 10.0
+    fn kedalaman_km(&self) -> f64 {
+        self.kedalaman
+            .split_whitespace()
+            .next()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0)
+    }
+
+    fn skala(&self) -> &'static str {
+        match self.magnitudo() {
+            m if m < 4.0 => "🟢 Kecil",
+            m if m < 5.0 => "🟡 Ringan",
+            m if m < 6.0 => "🟠 Sedang",
+            m if m < 7.0 => "🔴 Kuat",
+            _            => "🟣 Besar",
+        }
+    }
+
+    fn kategori_kedalaman(&self) -> &'static str {
+        match self.kedalaman_km() {
+            d if d < 60.0  => "Dangkal",
+            d if d < 300.0 => "Menengah",
+            _              => "Dalam",
+        }
+    }
+
+    // BMKG mengisi "-" kalau gempa tidak dirasakan
+    fn dirasakan_bersih(&self) -> Option<&str> {
+        let nilai = self.dirasakan.as_deref()?.trim();
+        if nilai.is_empty() || nilai == "-" {
+            None
+        } else {
+            Some(nilai)
+        }
+    }
+}
+
+fn main() {
+    let response: Response = serde_json::from_str(DATA_BMKG).expect("JSON tidak valid");
+    let g = response.infogempa.gempa;
+
+    println!("🌏 GEMPA TERBARU · BMKG");
+    println!("────────────────────────────────────────────");
+    println!("  {}  M {:.1}", g.skala(), g.magnitudo());
+    println!("────────────────────────────────────────────");
+    println!("  Waktu     : {} {}", g.tanggal, g.jam);
+    println!("  Wilayah   : {}", g.wilayah);
+    println!("  Koordinat : {} , {}", g.lintang, g.bujur);
+    println!("  Kedalaman : {} ({})", g.kedalaman, g.kategori_kedalaman());
+
+    // Option<String> -> pakai if let, jangan unwrap()
+    if let Some(potensi) = &g.potensi {
+        println!("  Potensi   : {}", potensi);
+    }
+
+    match g.dirasakan_bersih() {
+        Some(mmi) => println!("  Dirasakan : {}", mmi),
+        None      => println!("  Dirasakan : tidak ada laporan"),
+    }
+    println!("────────────────────────────────────────────");
+}`,
+        exercise: {
+          title: 'Exercise: Koordinat & Potensi Tsunami',
+          desc: 'Lengkapi tiga method yang belum jadi. Perhatikan jebakan di TODO 3 — ini bug yang benar-benar sering terjadi.',
+          tasks: [
+            'koordinat(): ubah "5.36,125.34" jadi Some((5.36, 125.34)). Pakai split_once(",") dan operator ?',
+            'google_maps_url(): hasilkan "https://www.google.com/maps?q=LAT,LON", None kalau koordinat gagal di-parse',
+            'tsunami(): return true HANYA kalau benar-benar berpotensi tsunami. Hati-hati — teks "Tidak berpotensi tsunami" juga mengandung kata "berpotensi"!',
+            'Di main(), tampilkan koordinat, link Google Maps, dan status tsunami',
+          ],
+          starterCode: `use serde::Deserialize;
+
+const DATA_BMKG: &str = r#"{
+  "Infogempa": {
+    "gempa": {
+      "Coordinates": "5.36,125.34",
+      "Magnitude": "5.3",
+      "Kedalaman": "10 km",
+      "Wilayah": "195 km BaratLaut TAHUNA-KEP.SANGIHE-SULUT",
+      "Potensi": "Tidak berpotensi tsunami"
+    }
+  }
+}"#;
+
+#[derive(Debug, Deserialize)]
+struct Response {
+    #[serde(rename = "Infogempa")]
+    infogempa: Wrapper,
+}
+
+#[derive(Debug, Deserialize)]
+struct Wrapper {
+    gempa: Gempa,
+}
+
+#[derive(Debug, Deserialize)]
+struct Gempa {
+    #[serde(rename = "Coordinates")]
+    coordinates: String,
+    #[serde(rename = "Magnitude")]
+    magnitude: String,
+    #[serde(rename = "Wilayah")]
+    wilayah: String,
+    #[serde(rename = "Potensi")]
+    potensi: Option<String>,
+}
+
+impl Gempa {
+    fn magnitudo(&self) -> f64 {
+        self.magnitude.trim().parse().unwrap_or(0.0)
+    }
+
+    // TODO 1: "5.36,125.34" -> Some((5.36, 125.34))
+    // Hint: self.coordinates.split_once(',') mengembalikan Option<(&str, &str)>
+    fn koordinat(&self) -> Option<(f64, f64)> {
+        todo!()
+    }
+
+    // TODO 2: bikin URL Google Maps dari koordinat
+    fn google_maps_url(&self) -> Option<String> {
+        todo!()
+    }
+
+    // TODO 3: JEBAKAN! "Tidak berpotensi tsunami" mengandung kata "berpotensi".
+    // Pastikan fungsi ini TIDAK salah baca.
+    fn tsunami(&self) -> bool {
+        todo!()
+    }
+}
+
+fn main() {
+    let response: Response = serde_json::from_str(DATA_BMKG).expect("JSON tidak valid");
+    let g = response.infogempa.gempa;
+
+    println!("M {:.1} — {}", g.magnitudo(), g.wilayah);
+
+    // TODO 4: tampilkan koordinat, link maps, dan status tsunami
+    // Contoh output yang diharapkan:
+    // M 5.3 — 195 km BaratLaut TAHUNA-KEP.SANGIHE-SULUT
+    // Koordinat : 5.36, 125.34
+    // Peta      : https://www.google.com/maps?q=5.36,125.34
+    // Tsunami   : aman
+}`,
+          hints: [
+            'koordinat(): let (lat, lon) = self.coordinates.split_once(\',\')?; lalu lat.trim().parse().ok()? untuk masing-masing, terakhir Some((lat, lon))',
+            'google_maps_url(): let (lat, lon) = self.koordinat()?; Some(format!("https://www.google.com/maps?q={},{}", lat, lon))',
+            'tsunami(): ubah ke lowercase dulu, lalu cek p.contains("berpotensi") && !p.contains("tidak"). Field-nya Option, jadi pakai .as_deref().map(...).unwrap_or(false)',
+            'Di main(): if let Some((lat, lon)) = g.koordinat() { println!("Koordinat : {}, {}", lat, lon); } dan untuk tsunami pakai if g.tsunami() { "WASPADA" } else { "aman" }',
+          ]
+        }
+      },
+
+      {
+        id: 'bmkg_analisis',
+        title: 'Analisis Daftar Gempa',
+        content: `
+# Analisis Daftar Gempa
+
+Endpoint \`gempaterkini.json\` mengembalikan **array**, bukan objek tunggal.
+Bedanya cuma satu baris di struct pembungkus:
+
+\`\`\`rust
+struct Wrapper {
+    gempa: Vec<Gempa>,   // array — bandingkan dengan: gempa: Gempa
+}
+\`\`\`
+
+## Jebakan 5 — Data Kembar
+
+BMKG kadang mengirim gempa yang sama dua kali. Kita buang duplikatnya dengan \`HashSet\`,
+tapi urutan aslinya harus tetap terjaga (terbaru di atas):
+
+\`\`\`rust
+fn dedup(daftar: Vec<Gempa>) -> Vec<Gempa> {
+    let mut terlihat = HashSet::new();
+    daftar
+        .into_iter()
+        .filter(|g| terlihat.insert(g.kunci()))
+        .collect()
+}
+\`\`\`
+
+Kuncinya ada di \`HashSet::insert()\` — method itu mengembalikan \`false\` kalau nilainya sudah ada.
+Jadi \`filter\` otomatis membuang yang kedua tanpa perlu sorting.
+
+## Statistik dengan Iterator
+
+\`\`\`rust
+let jumlah: f64 = daftar.iter().map(|g| g.magnitudo()).sum();
+let rata_rata = jumlah / daftar.len() as f64;
+\`\`\`
+
+## Jebakan 6 — f64 Tidak Punya Ord
+
+\`daftar.iter().max_by_key(|g| g.magnitudo())\` **tidak akan compile**. Kenapa?
+Karena \`f64\` bisa bernilai \`NaN\`, dan \`NaN\` tidak bisa dibandingkan — jadi \`f64\` hanya punya
+\`PartialOrd\`, bukan \`Ord\`. Solusinya \`max_by\` + \`partial_cmp\`:
+
+\`\`\`rust
+let terkuat = daftar
+    .iter()
+    .max_by(|a, b| a.magnitudo().partial_cmp(&b.magnitudo()).unwrap())
+    .unwrap();
+\`\`\`
+
+## Kelompokkan dengan HashMap entry API
+
+\`\`\`rust
+let mut per_kategori: HashMap<&str, usize> = HashMap::new();
+for g in &daftar {
+    *per_kategori.entry(g.kategori_kedalaman()).or_insert(0) += 1;
+}
+\`\`\`
+
+\`entry().or_insert(0)\` artinya: "ambil nilainya, kalau belum ada isi 0 dulu".
+Tanda \`*\` di depan untuk dereference — karena yang dikembalikan adalah \`&mut usize\`.
+
+<div class="concept-box tip">
+<strong>Kenapa kedalaman penting?</strong> Gempa dangkal (&lt; 60 km) terasa jauh lebih kuat di permukaan dibanding gempa dalam dengan magnitudo sama. Makanya M 5.0 dangkal bisa lebih merusak daripada M 6.0 di kedalaman 300 km.
+</div>
+
+<div class="concept-box">
+<strong>Versi lengkapnya</strong> ada di <code>08_mini_projects/gempa_bmkg/</code> — sudah pakai <code>reqwest</code> untuk ambil data betulan, punya mode <code>--watch</code>, dan 12 unit test.
+</div>
+        `,
+        defaultCode: `// Studi Kasus 2: Analisis daftar gempa BMKG
+// Data asli dari https://data.bmkg.go.id/DataMKG/TEWS/gempaterkini.json
+// Bedanya dengan autogempa.json: "gempa" di sini berupa ARRAY.
+
+use serde::Deserialize;
+use std::collections::{HashMap, HashSet};
+
+const DATA_BMKG: &str = r#"{
+  "Infogempa": { "gempa": [
+    { "Tanggal":"14 Agu 2026","DateTime":"2026-08-14T01:14:48+00:00",
+      "Coordinates":"5.36,125.34","Magnitude":"5.7","Kedalaman":"48 km",
+      "Wilayah":"175 km TimurLaut TAHUNA-KEP.SANGIHE-SULUT" },
+    { "Tanggal":"14 Agu 2026","DateTime":"2026-08-14T01:14:48+00:00",
+      "Coordinates":"5.36,125.34","Magnitude":"5.7","Kedalaman":"48 km",
+      "Wilayah":"175 km TimurLaut TAHUNA-KEP.SANGIHE-SULUT" },
+    { "Tanggal":"09 Agu 2026","DateTime":"2026-08-09T04:02:10+00:00",
+      "Coordinates":"-5.60,102.80","Magnitude":"5.5","Kedalaman":"40 km",
+      "Wilayah":"84 km Tenggara ENGGANO-BENGKULU" },
+    { "Tanggal":"05 Agu 2026","DateTime":"2026-08-05T15:41:03+00:00",
+      "Coordinates":"4.80,126.50","Magnitude":"6.4","Kedalaman":"10 km",
+      "Wilayah":"221 km BaratLaut PULAUKARATUNG-SULUT" },
+    { "Tanggal":"05 Agu 2026","DateTime":"2026-08-05T20:12:55+00:00",
+      "Coordinates":"1.20,127.40","Magnitude":"5.9","Kedalaman":"110 km",
+      "Wilayah":"62 km BaratDaya PULAUDOI-MALUT" },
+    { "Tanggal":"01 Agu 2026","DateTime":"2026-08-01T12:30:41+00:00",
+      "Coordinates":"-3.10,130.20","Magnitude":"4.8","Kedalaman":"320 km",
+      "Wilayah":"44 km BaratLaut SERAMBAGIANTIMUR-MALUKU" }
+  ]}
+}"#;
+
+#[derive(Debug, Deserialize)]
+struct Response {
+    #[serde(rename = "Infogempa")]
+    infogempa: Wrapper,
+}
+
+#[derive(Debug, Deserialize)]
+struct Wrapper {
+    gempa: Vec<Gempa>, // <- ARRAY, ini bedanya
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct Gempa {
+    #[serde(rename = "Tanggal")]
+    tanggal: String,
+    #[serde(rename = "DateTime")]
+    date_time: String,
+    #[serde(rename = "Coordinates")]
+    coordinates: String,
+    #[serde(rename = "Magnitude")]
+    magnitude: String,
+    #[serde(rename = "Kedalaman")]
+    kedalaman: String,
+    #[serde(rename = "Wilayah")]
+    wilayah: String,
+}
+
+impl Gempa {
+    fn magnitudo(&self) -> f64 {
+        self.magnitude.trim().parse().unwrap_or(0.0)
+    }
+
+    fn kedalaman_km(&self) -> f64 {
+        self.kedalaman
+            .split_whitespace()
+            .next()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0)
+    }
+
+    fn kategori_kedalaman(&self) -> &'static str {
+        match self.kedalaman_km() {
+            d if d < 60.0  => "Dangkal",
+            d if d < 300.0 => "Menengah",
+            _              => "Dalam",
+        }
+    }
+
+    fn ikon(&self) -> &'static str {
+        match self.magnitudo() {
+            m if m < 5.0 => "🟡",
+            m if m < 6.0 => "🟠",
+            m if m < 7.0 => "🔴",
+            _            => "🟣",
+        }
+    }
+
+    // Kunci unik untuk deteksi data kembar
+    fn kunci(&self) -> String {
+        format!("{}|{}", self.date_time, self.coordinates)
+    }
+}
+
+// HashSet::insert() mengembalikan false kalau nilainya sudah ada —
+// jadi filter ini membuang duplikat TANPA mengubah urutan.
+fn dedup(daftar: Vec<Gempa>) -> Vec<Gempa> {
+    let mut terlihat = HashSet::new();
+    daftar
+        .into_iter()
+        .filter(|g| terlihat.insert(g.kunci()))
+        .collect()
+}
+
+fn main() {
+    let response: Response = serde_json::from_str(DATA_BMKG).expect("JSON tidak valid");
+
+    let mentah = response.infogempa.gempa;
+    println!("Data mentah dari BMKG : {} gempa", mentah.len());
+
+    let daftar = dedup(mentah);
+    println!("Setelah buang kembar  : {} gempa\\n", daftar.len());
+
+    // ---- Tabel ----
+    println!("────────────────────────────────────────────────────────");
+    println!("  {:<14} {:<7} {:<10} {}", "TANGGAL", "MAG", "KEDALAMAN", "WILAYAH");
+    println!("────────────────────────────────────────────────────────");
+    for g in &daftar {
+        println!(
+            "  {:<14} {} {:<4.1} {:<10} {}",
+            g.tanggal,
+            g.ikon(),
+            g.magnitudo(),
+            g.kedalaman,
+            g.wilayah
+        );
+    }
+    println!("────────────────────────────────────────────────────────\\n");
+
+    // ---- Statistik pakai iterator ----
+    let total = daftar.len() as f64;
+    let jumlah_mag: f64 = daftar.iter().map(|g| g.magnitudo()).sum();
+    println!("📊 STATISTIK");
+    println!("  Rata-rata magnitudo : M {:.2}", jumlah_mag / total);
+
+    // f64 tidak punya Ord (gara-gara NaN), jadi pakai partial_cmp
+    let terkuat = daftar
+        .iter()
+        .max_by(|a, b| a.magnitudo().partial_cmp(&b.magnitudo()).unwrap())
+        .unwrap();
+    println!("  Terkuat             : M {:.1} — {}", terkuat.magnitudo(), terkuat.wilayah);
+
+    // ---- Kelompokkan pakai HashMap entry API ----
+    let mut per_kedalaman: HashMap<&str, usize> = HashMap::new();
+    for g in &daftar {
+        *per_kedalaman.entry(g.kategori_kedalaman()).or_insert(0) += 1;
+    }
+
+    println!("\\n  Sebaran kedalaman:");
+    for kategori in ["Dangkal", "Menengah", "Dalam"] {
+        if let Some(n) = per_kedalaman.get(kategori) {
+            println!("    {:<10} {} ({})", kategori, "▇".repeat(*n), n);
+        }
+    }
+
+    // ---- Filter: hanya gempa signifikan ----
+    let signifikan: Vec<&Gempa> = daftar.iter().filter(|g| g.magnitudo() >= 5.5).collect();
+    println!("\\n  Gempa M >= 5.5      : {} dari {}", signifikan.len(), daftar.len());
+}`,
+        exercise: {
+          title: 'Exercise: Cari Gempa Paling Berbahaya',
+          desc: 'Gempa dangkal terasa jauh lebih kuat daripada gempa dalam dengan magnitudo sama. Cari mana yang paling berisiko.',
+          tasks: [
+            'urutkan_by_magnitudo(): urutkan daftar dari magnitudo terbesar ke terkecil. Ingat f64 tidak punya Ord — pakai sort_by + partial_cmp',
+            'berbahaya(): return true kalau magnitudo >= 5.5 DAN kedalaman < 60 km (dangkal)',
+            'hitung_per_tanggal(): kelompokkan jumlah gempa per tanggal pakai HashMap<String, usize>',
+            'Di main(), tampilkan daftar terurut, daftar gempa berbahaya, dan rekap per tanggal',
+          ],
+          starterCode: `use serde::Deserialize;
+use std::collections::HashMap;
+
+const DATA_BMKG: &str = r#"{
+  "Infogempa": { "gempa": [
+    { "Tanggal":"14 Agu 2026","Magnitude":"5.7","Kedalaman":"48 km",
+      "Wilayah":"175 km TimurLaut TAHUNA-KEP.SANGIHE-SULUT" },
+    { "Tanggal":"14 Agu 2026","Magnitude":"5.5","Kedalaman":"40 km",
+      "Wilayah":"84 km Tenggara ENGGANO-BENGKULU" },
+    { "Tanggal":"05 Agu 2026","Magnitude":"6.4","Kedalaman":"10 km",
+      "Wilayah":"221 km BaratLaut PULAUKARATUNG-SULUT" },
+    { "Tanggal":"05 Agu 2026","Magnitude":"5.9","Kedalaman":"110 km",
+      "Wilayah":"62 km BaratDaya PULAUDOI-MALUT" },
+    { "Tanggal":"01 Agu 2026","Magnitude":"4.8","Kedalaman":"320 km",
+      "Wilayah":"44 km BaratLaut SERAMBAGIANTIMUR-MALUKU" }
+  ]}
+}"#;
+
+#[derive(Debug, Deserialize)]
+struct Response {
+    #[serde(rename = "Infogempa")]
+    infogempa: Wrapper,
+}
+
+#[derive(Debug, Deserialize)]
+struct Wrapper {
+    gempa: Vec<Gempa>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct Gempa {
+    #[serde(rename = "Tanggal")]
+    tanggal: String,
+    #[serde(rename = "Magnitude")]
+    magnitude: String,
+    #[serde(rename = "Kedalaman")]
+    kedalaman: String,
+    #[serde(rename = "Wilayah")]
+    wilayah: String,
+}
+
+impl Gempa {
+    fn magnitudo(&self) -> f64 {
+        self.magnitude.trim().parse().unwrap_or(0.0)
+    }
+
+    fn kedalaman_km(&self) -> f64 {
+        self.kedalaman
+            .split_whitespace()
+            .next()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0)
+    }
+
+    // TODO 2: berbahaya = M >= 5.5 DAN kedalaman < 60 km
+    fn berbahaya(&self) -> bool {
+        todo!()
+    }
+}
+
+// TODO 1: urutkan dari magnitudo terbesar ke terkecil
+fn urutkan_by_magnitudo(daftar: &mut Vec<Gempa>) {
+    todo!()
+}
+
+// TODO 3: hitung berapa gempa per tanggal
+fn hitung_per_tanggal(daftar: &[Gempa]) -> HashMap<String, usize> {
+    todo!()
+}
+
+fn main() {
+    let response: Response = serde_json::from_str(DATA_BMKG).expect("JSON tidak valid");
+    let mut daftar = response.infogempa.gempa;
+
+    urutkan_by_magnitudo(&mut daftar);
+
+    println!("=== Urut dari Terkuat ===");
+    // TODO 4: print tiap gempa: M x.x - wilayah
+
+    println!("\\n=== Gempa Berbahaya (dangkal & kuat) ===");
+    // TODO 4: print hanya yang berbahaya() == true
+
+    println!("\\n=== Rekap per Tanggal ===");
+    // TODO 4: print hasil hitung_per_tanggal
+}`,
+          hints: [
+            'urutkan_by_magnitudo: daftar.sort_by(|a, b| b.magnitudo().partial_cmp(&a.magnitudo()).unwrap()) — perhatikan b duluan supaya urutannya menurun',
+            'berbahaya: self.magnitudo() >= 5.5 && self.kedalaman_km() < 60.0',
+            'hitung_per_tanggal: bikin HashMap kosong, lalu for g in daftar { *map.entry(g.tanggal.clone()).or_insert(0) += 1; } dan return map-nya',
+            'Untuk filter berbahaya: for g in daftar.iter().filter(|g| g.berbahaya()) { ... }',
+          ]
+        }
+      }
+    ]
   }
 ];

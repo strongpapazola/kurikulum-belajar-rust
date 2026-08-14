@@ -1,7 +1,6 @@
 # 08 · Mini Projects
 
 > Terapkan semua yang sudah dipelajari ke proyek nyata.
-> Semua project bertema **pajak & keuangan** — relevan untuk dunia kerja!
 
 ---
 
@@ -12,6 +11,7 @@
 | [csv_processor](./csv_processor) | ⭐⭐ Menengah | Vec, HashMap, struct, error handling | ✅ Selesai |
 | [cli_kalkulator](./cli_kalkulator) | ⭐ Pemula | basic, functions, match, env::args | ✅ Selesai |
 | [rest_api](./rest_api) | ⭐⭐⭐ Lanjut | Axum, async, serde, JSON | ✅ Selesai |
+| [gempa_bmkg](./gempa_bmkg) | ⭐⭐⭐ Lanjut | reqwest, async, serde, API publik | ✅ Selesai |
 
 ---
 
@@ -144,6 +144,60 @@ cargo test
 
 ---
 
+## 04 · Monitor Gempa BMKG
+
+> Ambil data gempa real-time dari API publik BMKG, parse JSON-nya, tampilkan di terminal.
+
+📄 [gempa_bmkg/README.md](./gempa_bmkg/README.md) · [src/main.rs](./gempa_bmkg/src/main.rs) · [sederhana.rs](./gempa_bmkg/sederhana.rs)
+
+Project ini punya **dua versi** untuk hal yang sama — versi tanpa dependency sama sekali,
+dan versi Cargo yang memakai `reqwest` + `serde`.
+
+**Versi tanpa dependency** (biarkan `curl` yang ambil data, program baca stdin):
+```bash
+cd gempa_bmkg
+rustc sederhana.rs -o gempa
+curl -s https://data.bmkg.go.id/DataMKG/TEWS/autogempa.json | ./gempa
+```
+
+**Versi Cargo:**
+```bash
+cd gempa_bmkg
+cargo run                            # gempa terbaru
+cargo run -- terkini --min-mag 5.5   # 15 gempa terkini, filter magnitudo
+cargo run -- dirasakan               # gempa yang dirasakan warga
+cargo run -- terbaru --json          # output JSON
+cargo run -- terbaru --watch 60      # polling tiap 60 detik
+```
+
+**Contoh output:**
+```
+🌏  GEMPA TERBARU · BMKG
+
+────────────────────────────────────────────────────────────
+  🟠  M 5.3 — Sedang
+────────────────────────────────────────────────────────────
+  Waktu      : 14 Agu 2026 08:14:48 WIB
+  Wilayah    : 195 km BaratLaut TAHUNA-KEP.SANGIHE-SULUT
+  Koordinat  : 5.36 LU , 125.34 BT
+  Kedalaman  : 10 km (Dangkal)
+  Potensi    : Tidak berpotensi tsunami
+  Dirasakan  : tidak ada laporan
+  Peta       : https://www.google.com/maps?q=5.36,125.34
+  Shakemap   : https://data.bmkg.go.id/DataMKG/TEWS/20260814081725.mmi.jpg
+────────────────────────────────────────────────────────────
+```
+
+**Konsep yang dipraktekkan:**
+- `reqwest` untuk HTTP request async
+- Custom error enum + `impl From` supaya operator `?` bekerja
+- `#[serde(rename)]` untuk key JSON PascalCase
+- `Option<T>` untuk field yang tidak selalu ada
+- `HashSet` untuk buang data kembar, `HashMap` untuk statistik
+- Data BMKG semuanya bertipe String — konversi angka dikerjakan sendiri
+
+---
+
 ## Tips Extend Project Ini
 
 | Project | Ide Pengembangan |
@@ -151,6 +205,7 @@ cargo test
 | CSV Processor | Baca dari file nyata, export ke JSON, validasi lebih lengkap |
 | CLI Kalkulator | Mode interaktif (loop input), export ke PDF, history kalkulasi |
 | REST API | Tambah database (SQLite/Postgres), auth JWT, rate limiting, Docker |
+| Monitor Gempa | Simpan ke SQLite, notifikasi Telegram kalau M ≥ 6.0, hitung jarak ke kotamu |
 
 ---
 
